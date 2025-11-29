@@ -152,8 +152,6 @@ class AstroPhysicsSolver:
         if subset_numbers is not None and subset_target is not None:
             exact_subset = self._solve_subset_sum_exact(subset_numbers, subset_target)
             if exact_subset:
-                print(f"[Exact Solution] Subset: {sorted(exact_subset)} "
-                      f"(sum: {sum(exact_subset)})")
                 return {'subset': sorted(exact_subset), 'method': 'exact_dp'}
             print("[Exact DP] No solution found.")
             anneal_subset = self._solve_subset_sum_annealing(subset_numbers, subset_target, steps)
@@ -360,32 +358,26 @@ def get_standard_puzzle(N):
         return [[0]*N for _ in range(N)]
 
 # ==========================================
-# 4. MAIN: DEMO + SUDOKU
+# 4. MAIN
 # ==========================================
 if __name__ == "__main__":
-    engine = AstroPhysicsSolver()
-
-    # 1) Arbitrary array demo
-    rows, cols = 8, 8
-    arbitrary = [[(r * cols) + c for c in range(cols)] for r in range(rows)]
     
-    arbitrary[5][5] = 1
-    arbitrary[5][7] = 9
-    
-    arbitrary[2][7] = 3
-    print(f"\nGeneric array {rows}x{cols}:")
-    for row in arbitrary:
-        print(" ".join(str(v) for v in row))
-
-    # 2) Only run Sudoku when rows==cols==N
-    N = 64
+        
+    N = 64  # Start with 16x16 for testing
     BOX = int(math.isqrt(N))
+        
+    engine = AstroPhysicsSolver()
+    puzzle = get_standard_puzzle(N)
+    puzzle[0][0] = 1
+    
     sudoku_solver = GeneralSudokuSolver(engine)
-    puzzle = get_standard_puzzle(N)   # 16x16 grid
     solution = sudoku_solver.solve(puzzle)
+    
     print(f"\nSudoku solution ({N}x{N}):")
     if solution:
-        for row in solution:
-            print(" ".join(str(v) for v in row))
+        for row in solution[:min(10, N)]:
+            print(" ".join(f"{v:3}" for v in row[:min(10, N)]))
+        if N > 10:
+            print("... (showing first 10x10 of solution)")
     else:
         print("No solution found.")
