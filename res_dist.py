@@ -2,7 +2,7 @@ import numpy as np
 import math
 import warnings
 import sys
-import random  # For randomization
+import random
 
 sys.setrecursionlimit(2000000)
 warnings.filterwarnings("ignore")
@@ -14,33 +14,23 @@ warnings.filterwarnings("ignore")
 class AstroDomain:
     def __init__(self, name, initial_scale=10.0):
         self.name = name
-        # Initialize to scale for better convergence on balanced factors
         self.val = initial_scale
         self.velocity = 0.0
         
     def update_multiplicative(self, factor, dt):
-        """
-        Updates value by a multiplicative factor (safe for huge numbers).
-        val_new = val_old * (1 + speed * dt)
-        """
+        """Updates value by a multiplicative factor (safe for huge numbers)."""
         target_velocity = factor
         self.velocity = (self.velocity * 0.8) + (target_velocity * 0.2)
-        
-        # Cap the step size to 10% growth per tick to ensure stability
         step_change = np.clip(self.velocity * dt, -0.1, 0.1)
-        
-        # Apply update: val = val * (1 + change)
         try:
             self.val *= (1.0 + step_change)
         except OverflowError:
             self.val = float('inf')
-
-        # Safety floor
         if self.val < 1e-100:
             self.val = 1e-100
 
 # ==========================================
-# 2. LOG-SCALE MATH ENGINE (Extended for Subset Sum)
+# 2. LOG-SCALE MATH ENGINE
 # ==========================================
 
 class AstroPhysicsSolver:
@@ -85,10 +75,14 @@ class AstroPhysicsSolver:
         n = len(numbers)
         if n == 0 or target < 0:
             return None
+        if target > 100000:
+            return None
         dp = [False] * (target + 1)
         dp[0] = True
         prev = [-1] * (target + 1)
         for num in numbers:
+            if num > target:
+                continue
             for s in range(target, num - 1, -1):
                 if not dp[s] and dp[s - num]:
                     dp[s] = True
@@ -108,6 +102,8 @@ class AstroPhysicsSolver:
     
     def _solve_subset_sum_annealing(self, numbers, target, steps=50_000):
         n = len(numbers)
+        self.variables = {}
+        
         for i in range(n):
             var_name = f'incl_{i}'
             self.create_var(var_name, rough_magnitude=0.5)
@@ -147,6 +143,43 @@ class AstroPhysicsSolver:
         approx_sum = sum(subset)
         return subset if approx_sum == target else None
     
+    def _solve_subset_sum_annealing_fast(self, numbers, target, steps=100):
+        """Ultra-fast annealing for Sudoku heuristics."""
+        n = len(numbers)
+        if n == 0:
+            return None
+        
+        self.variables = {}
+        
+        initial_prob = min(0.8, target / sum(numbers)) if sum(numbers) > 0 else 0.5
+        for i in range(n):
+            var_name = f'incl_{i}'
+            self.create_var(var_name, rough_magnitude=initial_prob)
+        
+        learning_rate = 0.5
+        
+        for step in range(steps):
+            vals = {n: d.val for n, d in self.variables.items()}
+            current_sum = sum(vals[f'incl_{i}'] * numbers[i] for i in range(n))
+            error = current_sum - target
+            
+            if abs(error) < 0.1:
+                break
+            
+            adaptive_lr = learning_rate / (1.0 + step / 20.0)
+            
+            for i in range(n):
+                name = f'incl_{i}'
+                domain = self.variables[name]
+                gradient = error * numbers[i]
+                domain.val = np.clip(domain.val - adaptive_lr * gradient / max(abs(target), 1.0), 0.0, 1.0)
+        
+        vals_final = {n: d.val for n, d in self.variables.items()}
+        inclusions = [(i, vals_final[f'incl_{i}']) for i in range(n)]
+        inclusions.sort(key=lambda x: -x[1])
+        
+        return [i for i, _ in inclusions[:len(inclusions)//2]]
+    
     def solve(self, equation, steps=1_000_000, prefer_integers=False,
               subset_numbers=None, subset_target=None):
         if subset_numbers is not None and subset_target is not None:
@@ -161,6 +194,9 @@ class AstroPhysicsSolver:
                 return {'subset': sorted(anneal_subset), 'method': 'annealing'}
             print("[Subset Sum] No solution found.")
             return {'subset': None, 'method': 'failed'}
+        
+        if not equation:
+            return {}
         
         print(f"\n[Physics Engine] Target Equation: {equation}")
         lhs_str, rhs_str = equation.split('=')
@@ -262,15 +298,17 @@ class AstroPhysicsSolver:
         return float_res
 
 # ==========================================
-# 3. GENERAL SUDOKU SOLVER (SIZE FROM N)
+# 3. FAST SUDOKU SOLVER
 # ==========================================
 
-N = 16                  # <<< change this only (9, 16, 25, ...), must be a perfect square
+N = 64
 BOX = int(math.isqrt(N))
 
 class GeneralSudokuSolver:
     def __init__(self, engine):
-        self.engine = engine  # AstroPhysicsSolver
+        self.engine = engine
+        self.steps = 0
+        self.use_astro_every = 20
 
     def _ok(self, grid, r, c, d):
         for k in range(N):
@@ -283,29 +321,86 @@ class GeneralSudokuSolver:
                     return False
         return True
 
-    def _find_empty(self, grid):
+    def _find_empty_mrv(self, grid):
+        """Find empty cell with minimum remaining values."""
+        best = None
+        min_count = N + 1
         for r in range(N):
             for c in range(N):
                 if grid[r][c] == 0:
-                    return r, c
-        return None
+                    count = sum(1 for d in range(1, N + 1) if self._ok(grid, r, c, d))
+                    if count == 0:
+                        return r, c, []
+                    if count < min_count:
+                        min_count = count
+                        best = (r, c)
+        if best:
+            r, c = best
+            cands = [d for d in range(1, N + 1) if self._ok(grid, r, c, d)]
+            return r, c, cands
+        return None, None, []
 
-    def _choose_order_with_astro(self, candidates):
+    def _choose_order(self, grid, r, c, candidates):
+        """Order candidates using fast heuristic or occasional astro."""
         if len(candidates) <= 1:
             return candidates
-        costs = [1] * len(candidates)
-        _ = self.engine.solve("", subset_numbers=costs, subset_target=1)
-        return candidates
+        
+        self.steps += 1
+        
+        if self.steps % 1000 == 0:
+            print(f"  Steps: {self.steps}")
+        
+        # Simple degree heuristic most of the time
+        if self.steps % self.use_astro_every != 0:
+            costs = []
+            for d in candidates:
+                cost = 0
+                for k in range(N):
+                    if grid[r][k] == 0:
+                        cost += 1
+                    if grid[k][c] == 0:
+                        cost += 1
+                costs.append((d, cost))
+            costs.sort(key=lambda x: -x[1])
+            return [d for d, _ in costs]
+        
+        # Occasionally use astro
+        costs = []
+        for d in candidates:
+            cost = 0
+            for k in range(N):
+                if grid[r][k] == 0 and k != c and self._ok(grid, r, k, d):
+                    cost += 1
+                if grid[k][c] == 0 and k != r and self._ok(grid, k, c, d):
+                    cost += 1
+            br, bc = BOX * (r // BOX), BOX * (c // BOX)
+            for rr in range(br, br + BOX):
+                for cc in range(bc, bc + BOX):
+                    if grid[rr][cc] == 0 and (rr != r or cc != c) and self._ok(grid, rr, cc, d):
+                        cost += 1
+            costs.append(max(1, cost))
+        
+        total = sum(costs)
+        target = max(1, total // 2)
+        
+        selected_indices = self.engine._solve_subset_sum_annealing_fast(costs, target, steps=50)
+        
+        if selected_indices:
+            remaining = [i for i in range(len(candidates)) if i not in selected_indices]
+            return [candidates[i] for i in selected_indices] + [candidates[i] for i in remaining]
+        
+        paired = list(zip(candidates, costs))
+        paired.sort(key=lambda x: -x[1])
+        return [d for d, _ in paired]
 
     def _backtrack(self, grid):
-        empty = self._find_empty(grid)
-        if not empty:
+        r, c, cand = self._find_empty_mrv(grid)
+        if r is None:
             return True
-        r, c = empty
-        cand = [d for d in range(1, N + 1) if self._ok(grid, r, c, d)]
         if not cand:
             return False
-        ordered = self._choose_order_with_astro(cand)
+        
+        ordered = self._choose_order(grid, r, c, cand)
         for d in ordered:
             grid[r][c] = d
             if self._backtrack(grid):
@@ -315,12 +410,19 @@ class GeneralSudokuSolver:
 
     def solve(self, grid):
         g = [row[:] for row in grid]
+        self.steps = 0
+        
+        empty = sum(1 for r in range(N) for c in range(N) if g[r][c] == 0)
+        print(f"\nSolving {N}x{N} Sudoku ({empty} empty cells)...")
+        
         if self._backtrack(g):
+            print(f"SOLVED in {self.steps} steps")
             return g
+        print(f"FAILED after {self.steps} steps")
         return None
 
-def get_standard_puzzle(N):
-    if N == 9:
+def get_standard_puzzle(n):
+    if n == 9:
         return [
             [5,3,0, 0,7,0, 0,0,0],
             [6,0,0, 1,9,5, 0,0,0],
@@ -332,49 +434,46 @@ def get_standard_puzzle(N):
             [0,0,0, 4,1,9, 0,0,5],
             [0,0,0, 0,8,0, 0,7,9],
         ]
-    elif N == 16:
+    elif n == 16:
         return [
             [1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
             [0,0,0,0, 2,0,0,0, 0,0,0,0, 3,0,0,0],
             [0,0,0,0, 0,0,0,0, 0,4,0,0, 0,0,0,0],
             [0,0,0,0, 0,5,0,0, 0,0,0,0, 0,0,0,6],
-
             [0,7,0,0, 0,0,0,0, 0,0,8,0, 0,0,0,0],
             [0,0,0,0, 0,0,0,9, 0,0,0,0, 0,0,0,0],
             [0,0,0,0,10,0,0,0, 0,0,0,0, 0,0,0,0],
             [0,0,0,0, 0,0,0,0,11,0,0,0, 0,0,0,0],
-
             [0,0,0,0, 0,0,12,0, 0,0,0,0, 0,0,0,0],
             [0,0,0,0, 0,0,0,0, 0,0,0,13,0,0,0,0],
             [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,14,0,0],
             [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
-
             [0,0,0,0, 0,0,0,0, 0,0,0,0,15,0,0,0],
             [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,16,0],
             [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
             [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
         ]
     else:
-        return [[0]*N for _ in range(N)]
+        return [[0]*n for _ in range(n)]
 
 # ==========================================
 # 4. MAIN
 # ==========================================
 if __name__ == "__main__":
-    
-    N = 64  
+    N = 16  
     BOX = int(math.isqrt(N))
         
     engine = AstroPhysicsSolver()
     puzzle = get_standard_puzzle(N)
-    puzzle[0][0] = 1
+    puzzle[9][9] = 9
     
     sudoku_solver = GeneralSudokuSolver(engine)
     solution = sudoku_solver.solve(puzzle)
     
     print(f"\nSudoku solution ({N}x{N}):")
     if solution:
-        for row in solution:
-            print(" ".join(str(v) for v in row))
+        print("First 10x10 region:")
+        for row in solution[:10]:
+            print(" ".join(f"{v:2}" for v in row[:10]))
     else:
         print("No solution found.")
