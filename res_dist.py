@@ -4,7 +4,7 @@ import warnings
 import sys
 import random  # For randomization
 
-sys.setrecursionlimit(2000)
+sys.setrecursionlimit(20000)
 warnings.filterwarnings("ignore")
 
 # ==========================================
@@ -365,15 +365,22 @@ def get_standard_puzzle(N):
 # ==========================================
 # 4. MAIN: DEMO + SUDOKU
 # ==========================================
-
 if __name__ == "__main__":
     engine = AstroPhysicsSolver()
 
-    # Sudoku demo with dynamic size N
-    sudoku_solver = GeneralSudokuSolver(engine)
-    puzzle = get_standard_puzzle(N)
-    solution = sudoku_solver.solve(puzzle)
+    # 1) Arbitrary array demo
+    rows, cols = 8, 8
+    arbitrary = [[(r * cols) + c for c in range(cols)] for r in range(rows)]
+    print(f"\nGeneric array {rows}x{cols}:")
+    for row in arbitrary:
+        print(" ".join(str(v) for v in row))
 
+    # 2) Only run Sudoku when rows==cols==N
+    N = 64
+    BOX = int(math.isqrt(N))
+    sudoku_solver = GeneralSudokuSolver(engine)
+    puzzle = get_standard_puzzle(N)   # 16x16 grid
+    solution = sudoku_solver.solve(puzzle)
     print(f"\nSudoku solution ({N}x{N}):")
     if solution:
         for row in solution:
