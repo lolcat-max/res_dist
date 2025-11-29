@@ -3,7 +3,6 @@ import math
 import warnings
 import sys
 import random  # For randomization
-from tqdm import tqdm  # Progress bars for long-running solvers [web:1]
 
 sys.setrecursionlimit(2000000)
 warnings.filterwarnings("ignore")
@@ -113,36 +112,31 @@ class AstroPhysicsSolver:
             var_name = f'incl_{i}'
             self.create_var(var_name, rough_magnitude=0.5)
         
-        # Progress bar for annealing
-        with tqdm(total=steps, desc="Annealing", unit="step") as pbar:
-            for step in range(steps):
-                vals = {n: d.val for n, d in self.variables.items()}
-                current_sum = sum(vals[f'incl_{i}'] * numbers[i] for i in range(n))
-                error = abs(current_sum - target)
-                if error < 1e-6:
-                    pbar.set_postfix({"status": "CONVERGED", "error": f"{error:.2e}"})
-                    break
-                perturbation = 0.01
-                for i in range(n):
-                    name = f'incl_{i}'
-                    domain = self.variables[name]
-                    orig = domain.val
-                    clamped_orig = np.clip(orig, 0.0, 1.0)
-                    domain.val = min(1.0, clamped_orig + perturbation)
-                    sum_new_up = sum(self.variables[f'incl_{j}'].val * numbers[j] for j in range(n))
-                    sens_up = (sum_new_up - current_sum) / perturbation if perturbation > 0 else 0
-                    domain.val = max(0.0, clamped_orig - perturbation)
-                    sum_new_down = sum(self.variables[f'incl_{j}'].val * numbers[j] for j in range(n))
-                    sens_down = (sum_new_down - current_sum) / (-perturbation) if perturbation > 0 else 0
-                    sensitivity = (sens_up + sens_down) / 2.0
-                    if abs(sensitivity) < 1e-6:
-                        sensitivity = numbers[i]
-                    force = (target - current_sum) / sensitivity if sensitivity != 0 else 0
-                    force *= 0.1
-                    domain.update_multiplicative(force, dt=0.01)
-                    domain.val = np.clip(domain.val, 0.0, 1.0)
-                pbar.set_postfix({"error": f"{error:.2e}", "sum": f"{current_sum:.1f}"})
-                pbar.update(1)
+        for _ in range(steps):
+            vals = {n: d.val for n, d in self.variables.items()}
+            current_sum = sum(vals[f'incl_{i}'] * numbers[i] for i in range(n))
+            error = abs(current_sum - target)
+            if error < 1e-6:
+                break
+            perturbation = 0.01
+            for i in range(n):
+                name = f'incl_{i}'
+                domain = self.variables[name]
+                orig = domain.val
+                clamped_orig = np.clip(orig, 0.0, 1.0)
+                domain.val = min(1.0, clamped_orig + perturbation)
+                sum_new_up = sum(self.variables[f'incl_{j}'].val * numbers[j] for j in range(n))
+                sens_up = (sum_new_up - current_sum) / perturbation if perturbation > 0 else 0
+                domain.val = max(0.0, clamped_orig - perturbation)
+                sum_new_down = sum(self.variables[f'incl_{j}'].val * numbers[j] for j in range(n))
+                sens_down = (sum_new_down - current_sum) / (-perturbation) if perturbation > 0 else 0
+                sensitivity = (sens_up + sens_down) / 2.0
+                if abs(sensitivity) < 1e-6:
+                    sensitivity = numbers[i]
+                force = (target - current_sum) / sensitivity if sensitivity != 0 else 0
+                force *= 0.1
+                domain.update_multiplicative(force, dt=0.01)
+                domain.val = np.clip(domain.val, 0.0, 1.0)
         
         inclusions = {
             name: round(np.clip(val, 0.0, 1.0))
@@ -158,7 +152,6 @@ class AstroPhysicsSolver:
         if subset_numbers is not None and subset_target is not None:
             exact_subset = self._solve_subset_sum_exact(subset_numbers, subset_target)
             if exact_subset:
-          
                 return {'subset': sorted(exact_subset), 'method': 'exact_dp'}
             print("[Exact DP] No solution found.")
             anneal_subset = self._solve_subset_sum_annealing(subset_numbers, subset_target, steps)
@@ -214,47 +207,42 @@ class AstroPhysicsSolver:
             if t not in self.variables:
                 self.create_var(t, rough_magnitude=estimated_scale)
         
-        # Progress bar for physics engine iterations
-        with tqdm(total=steps, desc="Physics Solve", unit="iter") as pbar:
-            for step in range(steps):
-                vals = {n: d.val for n, d in self.variables.items()}
+        for _ in range(steps):
+            vals = {n: d.val for n, d in self.variables.items()}
+            try:
+                current_lhs = eval(lhs_str, {}, vals)
+            except OverflowError:
+                current_lhs = float('inf')
+            if current_lhs <= 0:
+                current_lhs = 1e-100
+            try:
+                log_current = math.log10(current_lhs)
+            except ValueError:
+                log_current = -100
+            error = log_current - log_target
+            if abs(error) < 1e-8:
+                break
+            perturbation = 1.001
+            log_perturb_delta = math.log10(perturbation)
+            for name in tokens:
+                domain = self.variables[name]
+                orig = domain.val
+                domain.val = orig * perturbation
+                vals_new = {n: v.val for n, v in self.variables.items()}
                 try:
-                    current_lhs = eval(lhs_str, {}, vals)
-                except OverflowError:
-                    current_lhs = float('inf')
-                if current_lhs <= 0:
-                    current_lhs = 1e-100
-                try:
-                    log_current = math.log10(current_lhs)
-                except ValueError:
-                    log_current = -100
-                error = log_current - log_target
-                if abs(error) < 1e-8:
-                    pbar.set_postfix({"status": "CONVERGED", "error": f"{error:.2e}"})
-                    break
-                perturbation = 1.001
-                log_perturb_delta = math.log10(perturbation)
-                for name in tokens:
-                    domain = self.variables[name]
-                    orig = domain.val
-                    domain.val = orig * perturbation
-                    vals_new = {n: v.val for n, v in self.variables.items()}
-                    try:
-                        lhs_new = eval(lhs_str, {}, vals_new)
-                        if lhs_new <= 0:
-                            lhs_new = 1e-100
-                        log_new = math.log10(lhs_new)
-                    except Exception:
-                        log_new = log_current
-                    sensitivity = (log_new - log_current) / log_perturb_delta
-                    domain.val = orig
-                    if abs(sensitivity) < 0.001:
-                        sensitivity = 1.0
-                    force = -error / sensitivity
-                    force *= 10.0
-                    domain.update_multiplicative(force, dt=0.01)
-                pbar.set_postfix({"error": f"{error:.2e}", "log_lhs": f"{log_current:.2f}"})
-                pbar.update(1)
+                    lhs_new = eval(lhs_str, {}, vals_new)
+                    if lhs_new <= 0:
+                        lhs_new = 1e-100
+                    log_new = math.log10(lhs_new)
+                except Exception:
+                    log_new = log_current
+                sensitivity = (log_new - log_current) / log_perturb_delta
+                domain.val = orig
+                if abs(sensitivity) < 0.001:
+                    sensitivity = 1.0
+                force = -error / sensitivity
+                force *= 10.0
+                domain.update_multiplicative(force, dt=0.01)
         
         float_res = {n: d.val for n, d in self.variables.items()}
         if prefer_integers and target_int is not None and len(tokens) == 2:
@@ -277,14 +265,9 @@ class AstroPhysicsSolver:
 # 3. GENERAL SUDOKU SOLVER (SIZE FROM N)
 # ==========================================
 
-N = 20                  # <<< change this only (9, 16, 25, ...), must be a perfect square
-BOX = int(math.isqrt(N))
-
 class GeneralSudokuSolver:
     def __init__(self, engine):
         self.engine = engine  # AstroPhysicsSolver
-        self.backtrack_count = 0
-        self.cell_count = N * N
 
     def _ok(self, grid, r, c, d):
         for k in range(N):
@@ -311,12 +294,7 @@ class GeneralSudokuSolver:
         _ = self.engine.solve("", subset_numbers=costs, subset_target=1)
         return candidates
 
-    def _backtrack(self, grid, pbar):
-        self.backtrack_count += 1
-        if self.backtrack_count % 1000 == 0:
-            pbar.set_postfix({"backtracks": self.backtrack_count})
-            pbar.update(1)
-        
+    def _backtrack(self, grid):
         empty = self._find_empty(grid)
         if not empty:
             return True
@@ -327,21 +305,15 @@ class GeneralSudokuSolver:
         ordered = self._choose_order_with_astro(cand)
         for d in ordered:
             grid[r][c] = d
-            if self._backtrack(grid, pbar):
+            if self._backtrack(grid):
                 return True
             grid[r][c] = 0
         return False
 
     def solve(self, grid):
         g = [row[:] for row in grid]
-        total_cells = self.cell_count
-        
-        # Progress bar for Sudoku solving
-        with tqdm(total=total_cells * 10, desc=f"Sudoku {N}x{N}", unit="attempt") as pbar:
-            pbar.set_postfix({"backtracks": 0})
-            if self._backtrack(g, pbar):
-                return g
-        print(f"Sudoku backtrack attempts: {self.backtrack_count}")
+        if self._backtrack(g):
+            return g
         return None
 
 def get_standard_puzzle(N):
@@ -387,15 +359,11 @@ def get_standard_puzzle(N):
 # ==========================================
 if __name__ == "__main__":
     engine = AstroPhysicsSolver()
-    N = 20
+    N = 256
     BOX = int(math.isqrt(N))
-    puzzle = get_standard_puzzle(N)   # Empty 20x20 grid
-    puzzle[1][1] = 1
-    puzzle[2][1] = 2
+    puzzle = get_standard_puzzle(N)   # 32x32 grid
 
-    print(f"Solving {N}x{N} Sudoku (BOX={BOX}x{BOX})...")
-    
-    # Sudoku solver with progress
+    # 2) Only run Sudoku when rows==cols==N
     sudoku_solver = GeneralSudokuSolver(engine)
     solution = sudoku_solver.solve(puzzle)
     print(f"\nSudoku solution ({N}x{N}):")
