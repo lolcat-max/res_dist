@@ -150,7 +150,6 @@ class AstroPhysicsSolver:
     def solve(self, equation, steps=1_000_000, prefer_integers=False,
               subset_numbers=None, subset_target=None):
         if subset_numbers is not None and subset_target is not None:
-                  f"{' ...' if len(subset_numbers) > 10 else ''}, Target: {subset_target}")
             exact_subset = self._solve_subset_sum_exact(subset_numbers, subset_target)
             if exact_subset:
                 print(f"[Exact Solution] Subset: {sorted(exact_subset)} "
@@ -367,14 +366,19 @@ if __name__ == "__main__":
     engine = AstroPhysicsSolver()
 
     # 1) Arbitrary array demo
-    rows, cols = 32, 32
+    rows, cols = 8, 8
     arbitrary = [[(r * cols) + c for c in range(cols)] for r in range(rows)]
+    
+    arbitrary[5][5] = 1
+    arbitrary[5][7] = 9
+    
+    arbitrary[2][7] = 3
     print(f"\nGeneric array {rows}x{cols}:")
     for row in arbitrary:
         print(" ".join(str(v) for v in row))
 
     # 2) Only run Sudoku when rows==cols==N
-    N = 256
+    N = 64
     BOX = int(math.isqrt(N))
     sudoku_solver = GeneralSudokuSolver(engine)
     puzzle = get_standard_puzzle(N)   # 16x16 grid
