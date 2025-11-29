@@ -4,7 +4,7 @@ import warnings
 import sys
 import random  # For randomization
 
-sys.setrecursionlimit(20000)
+sys.setrecursionlimit(2000000)
 warnings.filterwarnings("ignore")
 
 # ==========================================
@@ -150,9 +150,7 @@ class AstroPhysicsSolver:
     def solve(self, equation, steps=1_000_000, prefer_integers=False,
               subset_numbers=None, subset_target=None):
         if subset_numbers is not None and subset_target is not None:
-            print(f"\n[Subset Sum Mode] Numbers: {subset_numbers[:10]}"
                   f"{' ...' if len(subset_numbers) > 10 else ''}, Target: {subset_target}")
-            print(f"[System] Set size: {len(subset_numbers)}, Target magnitude: {subset_target}")
             exact_subset = self._solve_subset_sum_exact(subset_numbers, subset_target)
             if exact_subset:
                 print(f"[Exact Solution] Subset: {sorted(exact_subset)} "
@@ -369,14 +367,14 @@ if __name__ == "__main__":
     engine = AstroPhysicsSolver()
 
     # 1) Arbitrary array demo
-    rows, cols = 8, 8
+    rows, cols = 32, 32
     arbitrary = [[(r * cols) + c for c in range(cols)] for r in range(rows)]
     print(f"\nGeneric array {rows}x{cols}:")
     for row in arbitrary:
         print(" ".join(str(v) for v in row))
 
     # 2) Only run Sudoku when rows==cols==N
-    N = 64
+    N = 256
     BOX = int(math.isqrt(N))
     sudoku_solver = GeneralSudokuSolver(engine)
     puzzle = get_standard_puzzle(N)   # 16x16 grid
