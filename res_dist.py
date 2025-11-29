@@ -368,10 +368,8 @@ if __name__ == "__main__":
     # 1) Arbitrary array demo
     rows, cols = 8, 8
     arbitrary = [[(r * cols) + c for c in range(cols)] for r in range(rows)]
-    
     arbitrary[5][5] = 1
     arbitrary[5][7] = 9
-    
     arbitrary[2][7] = 3
     print(f"\nGeneric array {rows}x{cols}:")
     for row in arbitrary:
