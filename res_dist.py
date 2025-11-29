@@ -362,7 +362,7 @@ def get_standard_puzzle(N):
 # ==========================================
 if __name__ == "__main__":
     
-        
+    N = 64  
     BOX = int(math.isqrt(N))
         
     engine = AstroPhysicsSolver()
@@ -377,4 +377,4 @@ if __name__ == "__main__":
         for row in solution:
             print(" ".join(str(v) for v in row))
     else:
-        print("No solution found.")
+        print("No solution found.")    N = 64  
