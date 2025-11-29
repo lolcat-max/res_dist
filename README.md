@@ -86,30 +86,6 @@ custom_puzzle = [[0]*N for _ in range(N)]
 solution = sudoku_solver.solve(custom_puzzle)
 ```
 
-## Subset-sum and physics engine
-
-You can use `AstroPhysicsSolver` independently of Sudoku:
-
-```python
-engine = AstroPhysicsSolver()
-
-# Exact + annealing subset-sum
-numbers = [3, 7, 10, 25, 50]
-target = 40
-result = engine.solve("", subset_numbers=numbers, subset_target=target)
-print(result)
-```
-
-For equation solving (continuous):
-
-```python
-engine = AstroPhysicsSolver()
-res = engine.solve("x * y", prefer_integers=True)  # With a numeric RHS in the string, e.g. "x*y=1234567"
-print(res)
-```
-
-Note: For equation solving, the `equation` argument must include both LHS and RHS, e.g. `"x*y=1234567"`. The solver uses log-scale error minimization, then optionally refines integer factors for two-variable cases.[3]
-
 ## Extending candidate ordering
 
 `GeneralSudokuSolver._choose_order_with_astro` currently calls the physics engine as a placeholder. To make it meaningful:
