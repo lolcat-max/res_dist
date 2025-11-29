@@ -265,9 +265,6 @@ class AstroPhysicsSolver:
 # 3. GENERAL SUDOKU SOLVER (SIZE FROM N)
 # ==========================================
 
-N = 16                  # <<< change this only (9, 16, 25, ...), must be a perfect square
-BOX = int(math.isqrt(N))
-
 class GeneralSudokuSolver:
     def __init__(self, engine):
         self.engine = engine  # AstroPhysicsSolver
@@ -364,7 +361,7 @@ if __name__ == "__main__":
     engine = AstroPhysicsSolver()
     N = 64
     BOX = int(math.isqrt(N))
-    puzzle = get_standard_puzzle(N)   # 16x16 grid
+    puzzle = get_standard_puzzle(N)   # 32x32 grid
     puzzle[5][5] = 1
     puzzle[5][7] = 9
     puzzle[2][7] = 3
