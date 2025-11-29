@@ -377,4 +377,4 @@ if __name__ == "__main__":
         for row in solution:
             print(" ".join(str(v) for v in row))
     else:
-        print("No solution found.")    N = 64  
+        print("No solution found.")
