@@ -363,7 +363,6 @@ def get_standard_puzzle(N):
 if __name__ == "__main__":
     
         
-    N = 64  
     BOX = int(math.isqrt(N))
         
     engine = AstroPhysicsSolver()
@@ -375,9 +374,7 @@ if __name__ == "__main__":
     
     print(f"\nSudoku solution ({N}x{N}):")
     if solution:
-        for row in solution[:min(10, N)]:
-            print(" ".join(f"{v:3}" for v in row[:min(10, N)]))
-        if N > 10:
-            print("... (showing first 10x10 of solution)")
+        for row in solution:
+            print(" ".join(str(v) for v in row))
     else:
         print("No solution found.")
