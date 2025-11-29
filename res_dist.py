@@ -359,12 +359,12 @@ def get_standard_puzzle(N):
 # ==========================================
 if __name__ == "__main__":
     engine = AstroPhysicsSolver()
-    N = 64
+    N = 20
     BOX = int(math.isqrt(N))
     puzzle = get_standard_puzzle(N)   # 32x32 grid
-    puzzle[5][5] = 1
-    puzzle[5][7] = 9
-    puzzle[2][7] = 3
+    puzzle[1][1] = 1
+    puzzle[2][1] = 2
+
     # 2) Only run Sudoku when rows==cols==N
     sudoku_solver = GeneralSudokuSolver(engine)
     solution = sudoku_solver.solve(puzzle)
