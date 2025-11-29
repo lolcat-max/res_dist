@@ -363,7 +363,7 @@ def get_standard_puzzle(N):
 if __name__ == "__main__":
     
         
-    N = 64  # Start with 16x16 for testing
+    N = 64  
     BOX = int(math.isqrt(N))
         
     engine = AstroPhysicsSolver()
