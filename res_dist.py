@@ -473,7 +473,7 @@ if __name__ == "__main__":
     print(f"\nSudoku solution ({N}x{N}):")
     if solution:
         print("First 10x10 region:")
-        for row in solution[:10]:
-            print(" ".join(f"{v:2}" for v in row[:10]))
+        for row in solution:
+            print(" ".join(f"{v:2}" for v in row))
     else:
         print("No solution found.")
